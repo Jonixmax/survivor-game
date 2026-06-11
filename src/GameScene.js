@@ -57,9 +57,15 @@ export default class GameScene extends Phaser.Scene {
     });
     this.uiText.setScrollFactor(0).setDepth(10);
 
-    this.timeText = this.add.text(400, 30, '00:00', {
-      fontSize: '32px', fill: '#ffffff', fontStyle: 'bold', backgroundColor: 'rgba(0,0,0,0.8)', padding: { x: 15, y: 5 }
-    }).setOrigin(0.5, 0.5).setScrollFactor(0).setDepth(10);
+    // Movimos el X a 780 (casi al borde derecho) y cambiamos el setOrigin a (1, 0)
+    // para que se alinee perfectamente hacia la derecha.
+    this.timeText = this.add.text(780, 20, '00:00', {
+      fontSize: '32px', 
+      fill: '#ffffff', 
+      fontStyle: 'bold', 
+      backgroundColor: 'rgba(0,0,0,0.8)', 
+      padding: { x: 15, y: 5 }
+    }).setOrigin(1, 0).setScrollFactor(0).setDepth(10);
 
     // COLISIONES
     this.physics.add.collider(this.player, this.scenery);
