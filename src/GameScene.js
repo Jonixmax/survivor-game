@@ -5,38 +5,49 @@ export default class GameScene extends Phaser.Scene {
     super('GameScene');
   }
 
+  preload() {
+    // IMÁGENES
+    this.load.image('player', 'https://labs.phaser.io/assets/sprites/phaser-dude.png');
+    this.load.image('enemy', 'https://labs.phaser.io/assets/sprites/space-baddie.png');
+    this.load.image('boss', 'https://labs.phaser.io/assets/sprites/slime.png');
+    this.load.image('bullet', 'https://labs.phaser.io/assets/sprites/bullet.png');
+    this.load.image('gem', 'https://labs.phaser.io/assets/sprites/diamond.png');
+    this.load.image('coin', 'https://labs.phaser.io/assets/sprites/coin.png');
+    this.load.image('rock', 'https://labs.phaser.io/assets/sprites/block.png');
+    this.load.image('grass', 'https://labs.phaser.io/assets/textures/grass.png');
+
+    // AUDIOS (¡NUEVO!)
+    this.load.audio('shoot', 'https://labs.phaser.io/assets/audio/SoundEffects/blaster.wav');
+    this.load.audio('hit', 'https://labs.phaser.io/assets/audio/SoundEffects/squit.wav');
+    this.load.audio('pickup', 'https://labs.phaser.io/assets/audio/SoundEffects/key.wav');
+    this.load.audio('hurt', 'https://labs.phaser.io/assets/audio/SoundEffects/player_hit.wav');
+  }
+
   create() {
-    const stats = window.gameStats || { vidaMax: 100, velocidad: 200, disparo: 500 };
+    const stats = window.gameStats || { vidaMax: 100, velocidad: 200, disparo: 500, color: 0xffffff };
 
     this.playerLevel = 1;
     this.playerXp = 0;
     this.xpNeeded = 5;
     this.oroRecolectado = 0;
-    
-    // VARIABLES DE TIEMPO Y FASES
-    this.gameTime = 0; // Segundos transcurridos
-    this.isBossFase = false; // ¿Ya apareció el jefe?
+    this.gameTime = 0;
+    this.isBossFase = false; 
 
     this.playerHp = stats.vidaMax; 
     this.playerSpeed = stats.velocidad;
-    this.shootDelay = stats.disparo;
+    this.shootDelay = Math.max(50, stats.disparo);
+    this.playerColor = stats.color; 
     this.isInvulnerable = false;
 
-    // Escenario
-    const graphics = this.add.graphics();
-    graphics.fillStyle(0x228B22, 1);
-    graphics.fillRect(0, 0, 50, 50);
-    graphics.lineStyle(1, 0x006400, 1);
-    graphics.strokeRect(0, 0, 50, 50);
-    graphics.generateTexture('grass', 50, 50);
-    graphics.destroy();
-
+    // Fondo
     this.ground = this.add.tileSprite(400, 300, 800, 600, 'grass');
     this.ground.setScrollFactor(0); 
     this.ground.setDepth(-1);
+    this.ground.setTint(0x555555); 
 
-    this.player = this.add.rectangle(400, 300, 40, 40, 0xff0000);
-    this.physics.add.existing(this.player);
+    // Jugador
+    this.player = this.physics.add.sprite(400, 300, 'player');
+    this.player.setTint(this.playerColor); 
     this.cameras.main.startFollow(this.player);
 
     this.cursors = this.input.keyboard.createCursorKeys();
@@ -49,12 +60,11 @@ export default class GameScene extends Phaser.Scene {
     this.gems = this.physics.add.group(); 
     this.coins = this.physics.add.group(); 
 
-    // UI Actualizada (Añadimos el Reloj en el centro)
+    // UI
     this.uiText = this.add.text(20, 20, `HP: ${this.playerHp} | NIVEL: ${this.playerLevel} | ORO: 0`, {
       fontSize: '20px', fill: '#ffffff', fontStyle: 'bold', backgroundColor: 'rgba(0,0,0,0.5)', padding: { x: 10, y: 5 }
     });
-    this.uiText.setScrollFactor(0);
-    this.uiText.setDepth(10);
+    this.uiText.setScrollFactor(0).setDepth(10);
 
     this.timeText = this.add.text(400, 30, '00:00', {
       fontSize: '32px', fill: '#ffffff', fontStyle: 'bold', backgroundColor: 'rgba(0,0,0,0.8)', padding: { x: 15, y: 5 }
@@ -70,11 +80,8 @@ export default class GameScene extends Phaser.Scene {
     this.physics.add.overlap(this.projectiles, this.enemies, this.hitEnemy, null, this);
     this.physics.add.overlap(this.player, this.enemies, this.takeDamage, null, this);
 
-    // TEMPORIZADORES
-    // Reloj Maestro (1 segundo)
+    // Temporizadores
     this.time.addEvent({ delay: 1000, callback: this.updateTimer, callbackScope: this, loop: true });
-    
-    // Spawn normal de enemigos (guardamos la referencia para poder detenerlo)
     this.enemySpawner = this.time.addEvent({ delay: 1000, callback: this.spawnEnemy, callbackScope: this, loop: true });
     this.time.addEvent({ delay: 1200, callback: this.generateScenery, callbackScope: this, loop: true });
     
@@ -94,10 +101,9 @@ export default class GameScene extends Phaser.Scene {
     this.ground.tilePositionX = this.cameras.main.scrollX;
     this.ground.tilePositionY = this.cameras.main.scrollY;
 
-    // Persecución inteligente (el Jefe se mueve distinto)
     this.enemies.getChildren().forEach((enemy) => {
       if (enemy.isBoss) {
-        this.physics.moveToObject(enemy, this.player, 150); // El jefe es más rápido
+        this.physics.moveToObject(enemy, this.player, 150);
       } else {
         this.physics.moveToObject(enemy, this.player, 100);
       }
@@ -108,128 +114,114 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
-  // --- LÓGICA DE TIEMPO Y JEFE ---
   updateTimer() {
     this.gameTime++;
     const minutos = Math.floor(this.gameTime / 60).toString().padStart(2, '0');
     const segundos = (this.gameTime % 60).toString().padStart(2, '0');
     this.timeText.setText(`${minutos}:${segundos}`);
 
-    // ¡Minuto 1: Llega el Jefe!
     if (this.gameTime === 60 && !this.isBossFase) {
       this.isBossFase = true;
-      this.enemySpawner.destroy(); // Detenemos la aparición de enemigos pequeños
+      this.enemySpawner.destroy(); 
       this.spawnBoss();
     }
   }
 
   spawnBoss() {
-    // Alerta visual
     this.cameras.main.flash(500, 255, 0, 0);
-    this.timeText.setText('¡JEFE DETECTADO!');
-    this.timeText.setColor('#ff0000');
+    this.timeText.setText('¡JEFE DETECTADO!').setColor('#ff0000');
 
-    // Creamos al jefe: más grande y en otra posición
-    const boss = this.add.rectangle(this.player.x, this.player.y - 600, 100, 100, 0x800080); // Cuadrado morado gigante
-    this.physics.add.existing(boss);
+    const boss = this.physics.add.sprite(this.player.x, this.player.y - 600, 'boss');
+    boss.setScale(3);
+    boss.setTint(0xff00ff); 
     
-    // Propiedades especiales
     boss.isBoss = true;
-    boss.hp = 1000; // ¡Tiene mucha vida!
-    
+    boss.hp = 1000; 
     this.enemies.add(boss);
   }
 
-  // --- LÓGICA DE COMBATE ACTUALIZADA ---
-  hitEnemy(projectile, enemy) {
-    projectile.destroy();
-
-    // Si es el jefe, le restamos vida en lugar de destruirlo al instante
-    if (enemy.isBoss) {
-      enemy.hp -= 20; // Nuestro daño base
-      
-      // Parpadeo de daño del jefe
-      enemy.setFillStyle(0xffffff);
-      this.time.delayedCall(100, () => { if (enemy.active) enemy.setFillStyle(0x800080); });
-
-      if (enemy.hp <= 0) {
-        // ¡Mataste al jefe! Suelta una mega recompensa y ganas la partida
-        this.cameras.main.flash(1000, 255, 255, 0);
-        this.oroRecolectado += 500; // Gran premio
-        enemy.destroy();
-        
-        // Finalizar el juego con victoria
-        this.scene.pause();
-        window.dispatchEvent(new CustomEvent('gameOver', { detail: { oro: this.oroRecolectado, victoria: true } }));
-      }
-    } else {
-      // Enemigo normal
-      if (Phaser.Math.Between(1, 100) <= 20) {
-        const coin = this.add.rectangle(enemy.x, enemy.y, 10, 10, 0xffd700); 
-        this.physics.add.existing(coin);
-        this.coins.add(coin);
-      } else {
-        const gem = this.add.rectangle(enemy.x, enemy.y, 12, 12, 0x00ffff);
-        this.physics.add.existing(gem);
-        this.gems.add(gem);
-      }
-      enemy.destroy();
-    }
-  }
-
-  takeDamage(player, enemy) {
-    if (this.isInvulnerable) return;
-
-    // El jefe pega mucho más duro
-    const danyo = enemy.isBoss ? 50 : 20;
-    this.playerHp -= danyo;
-    this.updateUI();
-
-    if (this.playerHp <= 0) {
-      this.scene.pause();
-      window.dispatchEvent(new CustomEvent('gameOver', { detail: { oro: this.oroRecolectado, victoria: false } }));
-      return;
-    }
-
-    this.isInvulnerable = true;
-    this.player.setFillStyle(0xffffff);
-    this.time.delayedCall(1000, () => {
-      this.isInvulnerable = false;
-      this.player.setFillStyle(0xff0000);
-    });
-  }
-
-  // --- MÉTODOS ANTERIORES SIN CAMBIOS ---
   spawnEnemy() {
     const radius = 600;
     const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
-    const enemy = this.add.rectangle(this.player.x + Math.cos(angle) * radius, this.player.y + Math.sin(angle) * radius, 25, 25, 0x00ff00);
-    this.physics.add.existing(enemy);
+    const enemy = this.physics.add.sprite(this.player.x + Math.cos(angle) * radius, this.player.y + Math.sin(angle) * radius, 'enemy');
+    enemy.setScale(1.5); 
     this.enemies.add(enemy);
   }
 
   generateScenery() {
     const radius = Phaser.Math.Between(500, 700); 
     const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
-    const mapObject = this.add.rectangle(this.player.x + Math.cos(angle) * radius, this.player.y + Math.sin(angle) * radius, 50, 50, 0x808080);
-    this.physics.add.existing(mapObject, true);
+    const mapObject = this.physics.add.sprite(this.player.x + Math.cos(angle) * radius, this.player.y + Math.sin(angle) * radius, 'rock');
     this.scenery.add(mapObject);
+    mapObject.body.setImmovable(true);
   }
 
   shootTowardsMouse() {
     const pointer = this.input.activePointer;
     const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, pointer.worldX, pointer.worldY);
-    const projectile = this.add.rectangle(this.player.x, this.player.y, 10, 10, 0xffff00);
-    this.physics.add.existing(projectile);
+    
+    // SONIDO: Disparo láser (volumen muy bajito para no molestar)
+    this.sound.play('shoot', { volume: 0.1 });
+
+    const projectile = this.physics.add.sprite(this.player.x, this.player.y, 'bullet');
+    projectile.setRotation(angle);
     this.projectiles.add(projectile);
+    
     const speed = 500;
     projectile.body.setVelocityX(Math.cos(angle) * speed);
     projectile.body.setVelocityY(Math.sin(angle) * speed);
     this.time.delayedCall(2000, () => { if (projectile.active) projectile.destroy(); });
   }
 
-  collectGem(player, gem) { gem.destroy(); this.playerXp++; if (this.playerXp >= this.xpNeeded) this.levelUp(); }
-  collectCoin(player, coin) { coin.destroy(); this.oroRecolectado += 10; this.updateUI(); }
+  hitEnemy(projectile, enemy) {
+    projectile.destroy();
+
+    // SONIDO: Impacto contra enemigo
+    this.sound.play('hit', { volume: 0.2 });
+
+    if (enemy.isBoss) {
+      enemy.hp -= 20; 
+      enemy.setTint(0xffffff); 
+      this.time.delayedCall(100, () => { if (enemy.active) enemy.setTint(0xff00ff); }); 
+
+      if (enemy.hp <= 0) {
+        this.cameras.main.flash(1000, 255, 255, 0);
+        this.oroRecolectado += 500; 
+        enemy.destroy();
+        this.scene.pause();
+        window.dispatchEvent(new CustomEvent('gameOver', { detail: { oro: this.oroRecolectado, victoria: true } }));
+      }
+    } else {
+      if (Phaser.Math.Between(1, 100) <= 20) {
+        const coin = this.physics.add.sprite(enemy.x, enemy.y, 'coin');
+        coin.setScale(0.8);
+        this.coins.add(coin);
+      } else {
+        const gem = this.physics.add.sprite(enemy.x, enemy.y, 'gem');
+        gem.setScale(0.6);
+        this.gems.add(gem);
+      }
+      enemy.destroy();
+    }
+  }
+
+  collectGem(player, gem) { 
+    gem.destroy(); 
+    // SONIDO: Recoger XP
+    this.sound.play('pickup', { volume: 0.4 });
+    
+    this.playerXp++; 
+    if (this.playerXp >= this.xpNeeded) this.levelUp(); 
+  }
+
+  collectCoin(player, coin) { 
+    coin.destroy(); 
+    // SONIDO: Recoger Moneda (mismo sonido, ligeramente distinto tono si quisieras)
+    this.sound.play('pickup', { volume: 0.5 });
+    
+    this.oroRecolectado += 10; 
+    this.updateUI(); 
+  }
 
   levelUp() {
     this.playerLevel++;
@@ -249,6 +241,31 @@ export default class GameScene extends Phaser.Scene {
       this.playerSpeed += 40;
     }
     this.scene.resume();
+  }
+
+  takeDamage(player, enemy) {
+    if (this.isInvulnerable) return;
+
+    // SONIDO: El jugador recibe daño
+    this.sound.play('hurt', { volume: 0.6 });
+
+    const danyo = enemy.isBoss ? 50 : 20;
+    this.playerHp -= danyo;
+    this.updateUI();
+
+    if (this.playerHp <= 0) {
+      this.scene.pause();
+      window.dispatchEvent(new CustomEvent('gameOver', { detail: { oro: this.oroRecolectado, victoria: false } }));
+      return;
+    }
+
+    this.isInvulnerable = true;
+    this.player.setTint(0xff0000); 
+    
+    this.time.delayedCall(1000, () => {
+      this.isInvulnerable = false;
+      this.player.setTint(this.playerColor); 
+    });
   }
 
   updateUI() {
