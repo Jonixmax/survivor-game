@@ -73,7 +73,7 @@ export default class GameScene extends Phaser.Scene {
     // Colisiones
     this.physics.add.collider(this.player, this.scenery);
     this.physics.add.collider(this.enemies, this.scenery);
-    this.physics.add.collider(this.enemies, this.enemies);
+    // this.physics.add.collider(this.enemies, this.enemies);
 
     this.physics.add.overlap(this.player, this.gems, this.collectGem, null, this);
     this.physics.add.overlap(this.player, this.coins, this.collectCoin, null, this); 
@@ -161,7 +161,7 @@ export default class GameScene extends Phaser.Scene {
     const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, pointer.worldX, pointer.worldY);
     
     // SONIDO: Disparo láser (volumen muy bajito para no molestar)
-    this.sound.play('shoot', { volume: 0.1 });
+    // this.sound.play('shoot', { volume: 0.1 });
 
     const projectile = this.physics.add.sprite(this.player.x, this.player.y, 'bullet');
     projectile.setRotation(angle);
@@ -170,7 +170,11 @@ export default class GameScene extends Phaser.Scene {
     const speed = 500;
     projectile.body.setVelocityX(Math.cos(angle) * speed);
     projectile.body.setVelocityY(Math.sin(angle) * speed);
-    this.time.delayedCall(2000, () => { if (projectile.active) projectile.destroy(); });
+    this.time.delayedCall(2000, () => { 
+      if (projectile && projectile.active) {
+        projectile.destroy(); 
+      }
+    });
   }
 
   hitEnemy(projectile, enemy) {
