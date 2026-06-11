@@ -5,23 +5,7 @@ export default class GameScene extends Phaser.Scene {
     super('GameScene');
   }
 
-  preload() {
-    // IMÁGENES
-    this.load.image('player', 'https://labs.phaser.io/assets/sprites/phaser-dude.png');
-    this.load.image('enemy', 'https://labs.phaser.io/assets/sprites/space-baddie.png');
-    this.load.image('boss', 'https://labs.phaser.io/assets/sprites/slime.png');
-    this.load.image('bullet', 'https://labs.phaser.io/assets/sprites/bullet.png');
-    this.load.image('gem', 'https://labs.phaser.io/assets/sprites/diamond.png');
-    this.load.image('coin', 'https://labs.phaser.io/assets/sprites/coin.png');
-    this.load.image('rock', 'https://labs.phaser.io/assets/sprites/block.png');
-    this.load.image('grass', 'https://labs.phaser.io/assets/textures/grass.png');
-
-    // AUDIOS (¡NUEVO!)
-    this.load.audio('shoot', 'https://labs.phaser.io/assets/audio/SoundEffects/blaster.wav');
-    this.load.audio('hit', 'https://labs.phaser.io/assets/audio/SoundEffects/squit.wav');
-    this.load.audio('pickup', 'https://labs.phaser.io/assets/audio/SoundEffects/key.wav');
-    this.load.audio('hurt', 'https://labs.phaser.io/assets/audio/SoundEffects/player_hit.wav');
-  }
+  // Eliminamos el preload() por completo. Cero imágenes de internet.
 
   create() {
     const stats = window.gameStats || { vidaMax: 100, velocidad: 200, disparo: 500, color: 0xffffff };
@@ -39,21 +23,28 @@ export default class GameScene extends Phaser.Scene {
     this.playerColor = stats.color; 
     this.isInvulnerable = false;
 
-    // Fondo
+    // 1. FONDO PROCEDURAL (Generado por código, sin imágenes externas)
+    const graphics = this.add.graphics();
+    graphics.fillStyle(0x228B22, 1);
+    graphics.fillRect(0, 0, 50, 50);
+    graphics.lineStyle(1, 0x006400, 1);
+    graphics.strokeRect(0, 0, 50, 50);
+    graphics.generateTexture('grass', 50, 50);
+    graphics.destroy();
+
     this.ground = this.add.tileSprite(400, 300, 800, 600, 'grass');
     this.ground.setScrollFactor(0); 
     this.ground.setDepth(-1);
-    this.ground.setTint(0x555555); 
 
-    // Jugador
-    this.player = this.physics.add.sprite(400, 300, 'player');
-    this.player.setTint(this.playerColor); 
+    // 2. JUGADOR (Cuadrado puro)
+    this.player = this.add.rectangle(400, 300, 40, 40, this.playerColor);
+    this.physics.add.existing(this.player);
     this.cameras.main.startFollow(this.player);
 
     this.cursors = this.input.keyboard.createCursorKeys();
     this.keys = this.input.keyboard.addKeys('W,A,S,D');
 
-    // Grupos
+    // GRUPOS
     this.enemies = this.physics.add.group();
     this.projectiles = this.physics.add.group();
     this.scenery = this.physics.add.staticGroup();
@@ -70,17 +61,17 @@ export default class GameScene extends Phaser.Scene {
       fontSize: '32px', fill: '#ffffff', fontStyle: 'bold', backgroundColor: 'rgba(0,0,0,0.8)', padding: { x: 15, y: 5 }
     }).setOrigin(0.5, 0.5).setScrollFactor(0).setDepth(10);
 
-    // Colisiones
+    // COLISIONES
     this.physics.add.collider(this.player, this.scenery);
     this.physics.add.collider(this.enemies, this.scenery);
-    // this.physics.add.collider(this.enemies, this.enemies);
+    // Sin colisión entre enemigos para salvar la memoria
 
     this.physics.add.overlap(this.player, this.gems, this.collectGem, null, this);
     this.physics.add.overlap(this.player, this.coins, this.collectCoin, null, this); 
     this.physics.add.overlap(this.projectiles, this.enemies, this.hitEnemy, null, this);
     this.physics.add.overlap(this.player, this.enemies, this.takeDamage, null, this);
 
-    // Temporizadores
+    // TEMPORIZADORES
     this.time.addEvent({ delay: 1000, callback: this.updateTimer, callbackScope: this, loop: true });
     this.enemySpawner = this.time.addEvent({ delay: 1000, callback: this.spawnEnemy, callbackScope: this, loop: true });
     this.time.addEvent({ delay: 1200, callback: this.generateScenery, callbackScope: this, loop: true });
@@ -101,16 +92,23 @@ export default class GameScene extends Phaser.Scene {
     this.ground.tilePositionX = this.cameras.main.scrollX;
     this.ground.tilePositionY = this.cameras.main.scrollY;
 
+    // VALIDACIÓN DE SEGURIDAD EXTREMA
     this.enemies.getChildren().forEach((enemy) => {
-      if (enemy.isBoss) {
-        this.physics.moveToObject(enemy, this.player, 150);
-      } else {
-        this.physics.moveToObject(enemy, this.player, 100);
+      if (enemy && enemy.active && enemy.body) {
+        if (enemy.isBoss) {
+          this.physics.moveToObject(enemy, this.player, 150);
+        } else {
+          this.physics.moveToObject(enemy, this.player, 100);
+        }
       }
     });
 
     this.scenery.getChildren().forEach((item) => {
-      if (Phaser.Math.Distance.Between(this.player.x, this.player.y, item.x, item.y) > 1000) item.destroy();
+      if (item && item.active) {
+        if (Phaser.Math.Distance.Between(this.player.x, this.player.y, item.x, item.y) > 1000) {
+          item.destroy();
+        }
+      }
     });
   }
 
@@ -131,9 +129,8 @@ export default class GameScene extends Phaser.Scene {
     this.cameras.main.flash(500, 255, 0, 0);
     this.timeText.setText('¡JEFE DETECTADO!').setColor('#ff0000');
 
-    const boss = this.physics.add.sprite(this.player.x, this.player.y - 600, 'boss');
-    boss.setScale(3);
-    boss.setTint(0xff00ff); 
+    const boss = this.add.rectangle(this.player.x, this.player.y - 600, 100, 100, 0x800080);
+    this.physics.add.existing(boss);
     
     boss.isBoss = true;
     boss.hp = 1000; 
@@ -143,33 +140,31 @@ export default class GameScene extends Phaser.Scene {
   spawnEnemy() {
     const radius = 600;
     const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
-    const enemy = this.physics.add.sprite(this.player.x + Math.cos(angle) * radius, this.player.y + Math.sin(angle) * radius, 'enemy');
-    enemy.setScale(1.5); 
+    const enemy = this.add.rectangle(this.player.x + Math.cos(angle) * radius, this.player.y + Math.sin(angle) * radius, 25, 25, 0x00ff00);
+    this.physics.add.existing(enemy);
     this.enemies.add(enemy);
   }
 
   generateScenery() {
     const radius = Phaser.Math.Between(500, 700); 
     const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
-    const mapObject = this.physics.add.sprite(this.player.x + Math.cos(angle) * radius, this.player.y + Math.sin(angle) * radius, 'rock');
+    const mapObject = this.add.rectangle(this.player.x + Math.cos(angle) * radius, this.player.y + Math.sin(angle) * radius, 50, 50, 0x808080);
+    this.physics.add.existing(mapObject, true);
     this.scenery.add(mapObject);
-    mapObject.body.setImmovable(true);
   }
 
   shootTowardsMouse() {
     const pointer = this.input.activePointer;
     const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, pointer.worldX, pointer.worldY);
     
-    // SONIDO: Disparo láser (volumen muy bajito para no molestar)
-    // this.sound.play('shoot', { volume: 0.1 });
-
-    const projectile = this.physics.add.sprite(this.player.x, this.player.y, 'bullet');
-    projectile.setRotation(angle);
+    const projectile = this.add.rectangle(this.player.x, this.player.y, 10, 10, 0xffff00);
+    this.physics.add.existing(projectile);
     this.projectiles.add(projectile);
     
     const speed = 500;
     projectile.body.setVelocityX(Math.cos(angle) * speed);
     projectile.body.setVelocityY(Math.sin(angle) * speed);
+    
     this.time.delayedCall(2000, () => { 
       if (projectile && projectile.active) {
         projectile.destroy(); 
@@ -178,53 +173,50 @@ export default class GameScene extends Phaser.Scene {
   }
 
   hitEnemy(projectile, enemy) {
-    projectile.destroy();
+    if (projectile && projectile.active) projectile.destroy();
 
-    // SONIDO: Impacto contra enemigo
-    this.sound.play('hit', { volume: 0.2 });
+    if (enemy && enemy.active) {
+      if (enemy.isBoss) {
+        enemy.hp -= 20; 
+        enemy.setFillStyle(0xffffff); 
+        this.time.delayedCall(100, () => { if (enemy && enemy.active) enemy.setFillStyle(0x800080); }); 
 
-    if (enemy.isBoss) {
-      enemy.hp -= 20; 
-      enemy.setTint(0xffffff); 
-      this.time.delayedCall(100, () => { if (enemy.active) enemy.setTint(0xff00ff); }); 
-
-      if (enemy.hp <= 0) {
-        this.cameras.main.flash(1000, 255, 255, 0);
-        this.oroRecolectado += 500; 
-        enemy.destroy();
-        this.scene.pause();
-        window.dispatchEvent(new CustomEvent('gameOver', { detail: { oro: this.oroRecolectado, victoria: true } }));
-      }
-    } else {
-      if (Phaser.Math.Between(1, 100) <= 20) {
-        const coin = this.physics.add.sprite(enemy.x, enemy.y, 'coin');
-        coin.setScale(0.8);
-        this.coins.add(coin);
+        if (enemy.hp <= 0) {
+          this.cameras.main.flash(1000, 255, 255, 0);
+          this.oroRecolectado += 500; 
+          enemy.destroy();
+          this.scene.pause();
+          window.dispatchEvent(new CustomEvent('gameOver', { detail: { oro: this.oroRecolectado, victoria: true } }));
+        }
       } else {
-        const gem = this.physics.add.sprite(enemy.x, enemy.y, 'gem');
-        gem.setScale(0.6);
-        this.gems.add(gem);
+        if (Phaser.Math.Between(1, 100) <= 20) {
+          const coin = this.add.rectangle(enemy.x, enemy.y, 10, 10, 0xffd700);
+          this.physics.add.existing(coin);
+          this.coins.add(coin);
+        } else {
+          const gem = this.add.rectangle(enemy.x, enemy.y, 12, 12, 0x00ffff);
+          this.physics.add.existing(gem);
+          this.gems.add(gem);
+        }
+        enemy.destroy();
       }
-      enemy.destroy();
     }
   }
 
   collectGem(player, gem) { 
-    gem.destroy(); 
-    // SONIDO: Recoger XP
-    this.sound.play('pickup', { volume: 0.4 });
-    
-    this.playerXp++; 
-    if (this.playerXp >= this.xpNeeded) this.levelUp(); 
+    if (gem && gem.active) {
+      gem.destroy(); 
+      this.playerXp++; 
+      if (this.playerXp >= this.xpNeeded) this.levelUp(); 
+    }
   }
 
   collectCoin(player, coin) { 
-    coin.destroy(); 
-    // SONIDO: Recoger Moneda (mismo sonido, ligeramente distinto tono si quisieras)
-    this.sound.play('pickup', { volume: 0.5 });
-    
-    this.oroRecolectado += 10; 
-    this.updateUI(); 
+    if (coin && coin.active) {
+      coin.destroy(); 
+      this.oroRecolectado += 10; 
+      this.updateUI(); 
+    }
   }
 
   levelUp() {
@@ -250,9 +242,6 @@ export default class GameScene extends Phaser.Scene {
   takeDamage(player, enemy) {
     if (this.isInvulnerable) return;
 
-    // SONIDO: El jugador recibe daño
-    this.sound.play('hurt', { volume: 0.6 });
-
     const danyo = enemy.isBoss ? 50 : 20;
     this.playerHp -= danyo;
     this.updateUI();
@@ -264,11 +253,11 @@ export default class GameScene extends Phaser.Scene {
     }
 
     this.isInvulnerable = true;
-    this.player.setTint(0xff0000); 
+    this.player.setFillStyle(0xffffff); 
     
     this.time.delayedCall(1000, () => {
       this.isInvulnerable = false;
-      this.player.setTint(this.playerColor); 
+      this.player.setFillStyle(this.playerColor); 
     });
   }
 
